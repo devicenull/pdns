@@ -67,7 +67,7 @@ following methods are relevant:
         {
         public:
 
-        virtual void lookup(const QType &qtype, const string &qdomain, DNSPacket *pkt_p=0, int zoneId=-1)=0;
+        virtual void lookup(const QType &qtype, const string &qdomain, int zoneId=-1, DNSPacket *pkt_p=nullptr)=0;
         virtual bool list(const string &target, int domain_id)=0;
         virtual bool get(DNSResourceRecord &r)=0;
         virtual bool getSOA(const string &name, SOAData &soadata, DNSPacket *p=0);
@@ -300,7 +300,7 @@ Classes
 
 .. cpp:member:: bool DNSResourceRecord::auth
 
-  Used for DNSSEC operations. See :doc:`../dnssec/migration`. 
+  Used for DNSSEC operations. See :doc:`../dnssec/migration`.
   It is also useful to check out the ``rectifyZone()`` in pdnsutil.cc.
 
 .. cpp:member:: bool DNSResourceRecord::disabled

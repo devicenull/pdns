@@ -223,6 +223,7 @@ public:
   bool setOptions(const DNSName& domain, const string& options) override;
   bool setCatalog(const DNSName& domain, const DNSName& catalog) override;
   bool setAccount(const DNSName &domain, const string &account) override;
+  bool hasALIASRecords(const DNSName& domain, int zoneId) override;
 
   bool getBeforeAndAfterNamesAbsolute(uint32_t id, const DNSName& qname, DNSName& unhashed, DNSName& before, DNSName& after) override;
   bool updateDNSSECOrderNameAndAuth(uint32_t domain_id, const DNSName& qname, const DNSName& ordername, bool auth, const uint16_t=QType::ANY) override;

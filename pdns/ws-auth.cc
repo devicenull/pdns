@@ -771,6 +771,11 @@ static void updateDomainSettingsFromDocument(UeberBackend& B, DomainInfo& di, co
   if (dnssecInJSON) {
     if (dnssecDocVal) {
       if (!isDNSSECZone) {
+        if (B.hasALIASRecords(zonename, di.id))
+        {
+            throw ApiException("Unable to secure zone - DNSSEC cannot be enabled on zones containing ALIAS records");
+        }
+
         addDefaultDNSSECKeys(dk, zonename);
 
         // Used later for NSEC3PARAM
@@ -1464,7 +1469,7 @@ static void gatherRecordsFromZone(const std::string& zonestring, vector<DNSResou
  *   *) no duplicates for QTypes that can only be present once per RRset
  *   *) hostnames are hostnames
  */
-static void checkNewRecords(vector<DNSResourceRecord>& records, const DNSName& zone)
+static void checkNewRecords(vector<DNSResourceRecord>& records, const DNSName& zone, bool is_secured=false)
 {
   sort(records.begin(), records.end(),
     [](const DNSResourceRecord& rec_a, const DNSResourceRecord& rec_b) -> bool {
@@ -1502,6 +1507,11 @@ static void checkNewRecords(vector<DNSResourceRecord>& records, const DNSName& z
       checkHostnameCorrectness(rec);
     } catch (const std::exception& e) {
       throw ApiException("RRset "+rec.qname.toString()+" IN "+rec.qtype.toString() + ": " + e.what());
+    }
+
+    if (rec.qtype.getCode() == QType::ALIAS && is_secured)
+    {
+      throw ApiException("ALIAS Records cannot be added to DNSSEC secured zones");
     }
 
     previous = rec;
@@ -1831,8 +1841,6 @@ static void apiServerZonesPost(HttpRequest* req, HttpResponse* resp) {
     }
   }
 
-  checkNewRecords(new_records, zonename);
-
   if (boolFromJson(document, "dnssec", false)) {
     checkDefaultDNSSECAlgos();
 
@@ -1844,6 +1852,8 @@ static void apiServerZonesPost(HttpRequest* req, HttpResponse* resp) {
       }
     }
   }
+
+  checkNewRecords(new_records, zonename, boolFromJson(document, "dnssec", false));
 
   // no going back after this
   if(!B.createDomain(zonename, kind.get_value_or(DomainInfo::Native), masters.get_value_or(vector<ComboAddress>()), account.get_value_or(""))) {
@@ -2020,7 +2030,8 @@ static void apiServerZoneDetail(HttpRequest* req, HttpResponse* resp) {
         throw ApiException("Modifying RRsets in Consumer zones is unsupported");
       }
 
-      checkNewRecords(new_records, zonename);
+      DNSSECKeeper dk(&B);
+      checkNewRecords(new_records, zonename, dk.isSecuredZone(zonename));
 
       di.backend->startTransaction(zonename, static_cast<int>(di.id));
       for(auto& rr : new_records) {
@@ -2194,6 +2205,7 @@ static void patchZone(UeberBackend& B, HttpRequest* req, HttpResponse* resp)  //
   if (!B.getDomainInfo(zonename, di)) {
     throw HttpNotFoundException();
   }
+  DNSSECKeeper dk(&B);
 
   vector<DNSResourceRecord> new_records;
   vector<Comment> new_comments;
@@ -2265,7 +2277,7 @@ static void patchZone(UeberBackend& B, HttpRequest* req, HttpResponse* resp)  //
                 soa_edit_done = increaseSOARecord(rr, soa_edit_api_kind, soa_edit_kind);
               }
             }
-            checkNewRecords(new_records, zonename);
+            checkNewRecords(new_records, zonename, dk.isSecuredZone(zonename));
           }
 
           if (replace_comments) {
@@ -2358,7 +2370,6 @@ static void patchZone(UeberBackend& B, HttpRequest* req, HttpResponse* resp)  //
   }
 
   // Rectify
-  DNSSECKeeper dk(&B);
   if (!zone_disabled && !dk.isPresigned(zonename) && isZoneApiRectifyEnabled(di)) {
     string info;
     string error_msg;

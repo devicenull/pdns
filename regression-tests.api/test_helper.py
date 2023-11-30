@@ -3,9 +3,6 @@ from datetime import datetime
 import os
 import requests
 import unittest
-import mysql.connector
-import psycopg2
-import sqlite3
 import subprocess
 import sys
 
@@ -26,6 +23,13 @@ SQLITE_DB = os.environ.get('SQLITE_DB', 'pdns.sqlite3')
 LMDB_DB = os.environ.get('SQLITE_DB', 'pdns.lmdb')
 SDIG = os.environ.get('SDIG', 'sdig')
 DNSPORT = os.environ.get('DNSPORT', '53')
+
+if BACKEND == 'gmysql':
+    import mysql.connector
+elif BACKEND == 'gsqlite3':
+    import sqlite3
+elif BACKEND == 'gpgsql':
+    import psycopg2
 
 class ApiTestCase(unittest.TestCase):
 

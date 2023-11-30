@@ -2711,3 +2711,23 @@ class AuthZoneKeys(ApiTestCase, AuthZonesHelperMixin):
 
         r = self.session.delete(self.url("/api/v1/servers/localhost/zones/powerdnssec.org./metadata/PUBLISH-CDS"))
         self.assertEqual(r.status_code, 200)
+
+    def test_no_alias_with_dnssec(self):
+        """ALIAS records are not supported with DNSSEC - Should fail."""
+        name, _, _ = self.create_zone(dnssec=True)
+        rrsets = [
+            {'name': name, 'type': 'SOA', 'ttl': 3600, 'records': [{'content': 'invalid. hostmaster.invalid. 1 10800 3600 604800 3600'}]},
+            {'name': 'www.' + name, 'type': 'ALIAS', 'ttl': 3600, 'records': [{'content': 'example.com.'}]},
+        ]
+        self.put_zone(name, {'rrsets': rrsets}, expect_error='ALIAS Records cannot be added to DNSSEC secured zones')
+
+    def test_no_enable_dnssec_with_alias(self):
+        """ALIAS records are not supported with DNSSEC - Should fail."""
+        name, _, _ = self.create_zone()
+        rrsets = [
+            {'name': name, 'type': 'SOA', 'ttl': 3600, 'records': [{'content': 'invalid. hostmaster.invalid. 1 10800 3600 604800 3600'}]},
+            {'name': 'www.' + name, 'type': 'ALIAS', 'ttl': 3600, 'records': [{'content': 'example.com.'}]},
+        ]
+        self.put_zone(name, {'rrsets': rrsets})
+
+        self.put_zone(name, {'dnssec': True}, expect_error='Unable to secure zone - DNSSEC cannot be enabled on zones containing ALIAS records')

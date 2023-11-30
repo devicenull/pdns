@@ -338,6 +338,39 @@ bool GSQLBackend::setAccount(const DNSName &domain, const string &account)
   return true;
 }
 
+bool GSQLBackend::hasALIASRecords(const DNSName &target, int domain_id)
+{
+  DLOG(g_log<<"GSQLBackend constructing handle for hasALIASRecords of domain id '"<<domain_id<<"'"<<endl);
+
+  bool rc = false;
+  try {
+    reconnectIfNeeded();
+
+    d_listQuery_stmt->
+      bind("include_disabled", 0)->
+      bind("domain_id", domain_id)->
+      execute();
+
+    // content,ttl,prio,type,domain_id,disabled,name,auth,ordername
+    SSqlStatement::row_t row;
+    while (d_listQuery_stmt->hasNextRow()) {
+      d_listQuery_stmt->nextRow(row);
+      ASSERT_ROW_COLUMNS("list-query", row, 9);
+      if (pdns_iequals(row[3], "ALIAS"))
+      {
+        rc = true;
+        // don't break here, we need to consume all the rows
+      }
+    }
+    d_listQuery_stmt->reset();
+  }
+  catch(SSqlException &e) {
+    throw PDNSException("GSQLBackend unable to list domain '" + target.toLogString() + "': "+e.txtReason());
+  }
+
+  return rc;
+}
+
 bool GSQLBackend::getDomainInfo(const DNSName &domain, DomainInfo &di, bool getSerial)
 {
   /* fill DomainInfo from database info:

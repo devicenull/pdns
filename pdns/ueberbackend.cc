@@ -128,6 +128,15 @@ bool UeberBackend::createDomain(const DNSName &domain, const DomainInfo::DomainK
   return false;
 }
 
+bool UeberBackend::hasALIASRecords(const DNSName &domain, int zoneId)
+{
+  bool rc = false;
+  for(auto backend : backends)
+    rc |= backend->hasALIASRecords(domain, zoneId);
+  return rc;
+}
+
+
 bool UeberBackend::doesDNSSEC()
 {
   for(auto* db :  backends) {

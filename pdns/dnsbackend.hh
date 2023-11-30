@@ -398,6 +398,12 @@ public:
     return false;
   }
 
+  // does the specified domain have at least one alias record?
+  virtual bool hasALIASRecords(const DNSName& /* domain */, int /* zoneId */)
+  {
+    return false;
+  }
+
   //! Can be called to seed the getArg() function with a prefix
   void setArgPrefix(const string &prefix);
 

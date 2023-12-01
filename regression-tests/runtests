@@ -27,6 +27,11 @@ for prog in $SDIG $SAXFR $NOTIFY $NSEC3DIG; do
   fi
 done
 
+if [ "${testsdir}" == "" ]; then
+    echo "Cowardly refusing to proceed until \$testsdir is set"
+    exit 1
+fi
+
 export SDIG="timeout 5 $SDIG"
 export NSEC3DIG="timeout 5 $NSEC3DIG"
 export SAXFR="timeout 30 $SAXFR"

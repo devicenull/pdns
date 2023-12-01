@@ -1609,6 +1609,13 @@ static int addOrReplaceRecord(bool addOrReplace, const vector<string>& cmds) {
   rr.qname = name;
   DNSResourceRecord oldrr;
 
+  DNSSECKeeper dk(&B);
+  if (rr.qtype.getCode() == QType::ALIAS && dk.isSecuredZone(zone))
+  {
+    cerr << "ALIAS Records cannot be added to DNSSEC secured zones" << endl;
+    return false;
+  }
+
   di.backend->startTransaction(zone, -1);
 
   if(addOrReplace) { // the 'add' case
@@ -2302,6 +2309,12 @@ static bool secureZone(DNSSECKeeper& dk, const DNSName& zone)
   {
     cerr << "Warning! This is a secondary zone! If this was a mistake, please run" << endl;
     cerr<<"pdnsutil disable-dnssec "<<zone<<" right now!"<<endl;
+  }
+
+  if (B.hasALIASRecords(zone, di.id))
+  {
+    cerr << "Unable to secure zone - DNSSEC cannot be enabled on zones containing ALIAS records" << endl;
+    return false;
   }
 
   if (!k_algo.empty()) { // Add a KSK

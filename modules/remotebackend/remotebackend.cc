@@ -245,12 +245,6 @@ bool RemoteBackend::list(const DNSName& target, int domain_id, bool include_disa
   return true;
 }
 
-bool RemoteBackend::hasALIASRecords(const DNSName &target, int domain_id)
-{
-  // FIXME: placeholder
-  return false;
-}
-
 bool RemoteBackend::get(DNSResourceRecord& rr)
 {
   if (d_index == -1) {

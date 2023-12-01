@@ -206,7 +206,6 @@ public:
   void getUnfreshSlaveInfos(vector<DomainInfo>* domains) override;
   void setStale(uint32_t domain_id) override;
   void setFresh(uint32_t domain_id) override;
-  bool hasALIASRecords(const DNSName& domain, int zoneId) override;
 
   static DNSBackend* maker();
 

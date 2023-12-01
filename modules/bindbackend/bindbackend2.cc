@@ -1490,6 +1490,61 @@ bool Bind2Backend::searchRecords(const string& pattern, int maxResults, vector<D
   return true;
 }
 
+bool Bind2Backend::hasALIASRecords(const DNSName &target, int domain_id)
+{
+  BB2DomainInfo bbd;
+
+  if (!safeGetBBDomainInfo(domain_id, &bbd))
+    return false;
+
+  d_handle.reset();
+  DLOG(g_log << "Bind2Backend constructing handle for alias check of " << domain_id << endl);
+
+  if (!bbd.d_loaded) {
+    throw PDNSException("zone was not loaded, perhaps because of: " + bbd.d_status);
+  }
+
+  shared_ptr<const recordstorage_t> rhandle = bbd.d_records.get();
+  for (recordstorage_t::const_iterator ri = rhandle->begin();  ri != rhandle->end(); ri++) {
+    if (ri->qtype == QType::ALIAS)
+    {
+      return true;
+    }
+  }
+  return false;
+
+  /*
+  DLOG(g_log<<"GSQLBackend constructing handle for hasALIASRecords of domain id '"<<domain_id<<"'"<<endl);
+
+  bool rc = false;
+  try {
+    reconnectIfNeeded();
+
+    d_listQuery_stmt->
+      bind("include_disabled", 0)->
+      bind("domain_id", domain_id)->
+      execute();
+
+    // content,ttl,prio,type,domain_id,disabled,name,auth,ordername
+    SSqlStatement::row_t row;
+    while (d_listQuery_stmt->hasNextRow()) {
+      d_listQuery_stmt->nextRow(row);
+      ASSERT_ROW_COLUMNS("list-query", row, 9);
+      if (pdns_iequals(row[3], "ALIAS"))
+      {
+        rc = true;
+        // don't break here, we need to consume all the rows
+      }
+    }
+    d_listQuery_stmt->reset();
+  }
+  catch(SSqlException &e) {
+    throw PDNSException("GSQLBackend unable to list domain '" + target.toLogString() + "': "+e.txtReason());
+  }
+
+  return rc;*/
+}
+
 class Bind2Factory : public BackendFactory
 {
 public:

@@ -432,6 +432,9 @@ std::unique_ptr<DNSPacket> DNSPacket::replyPacket() const
   auto r=make_unique<DNSPacket>(d_slog, false);
   r->setSocket(d_socket);
   r->d_anyLocal=d_anyLocal;
+#ifdef HAVE_XSK
+  r->d_xskResponse = d_xskResponse;
+#endif /* HAVE_XSK */
   r->setRemote(&d_remote);
   r->d_inner_remote=d_inner_remote;
   r->setAnswer(true);  // this implies the allocation of the header

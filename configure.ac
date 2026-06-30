@@ -75,6 +75,7 @@ eval full_libdir="\"$libdir\""
 
 # detect pkg-config explicitly
 PKG_PROG_PKG_CONFIG
+PDNS_WITH_XSK
 
 AC_CHECK_HEADERS(
 	[sys/mman.h],

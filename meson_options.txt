@@ -11,6 +11,7 @@ option('tls-libssl-dir', type: 'string', value: '', description: 'Alternate Open
 option('tls-gnutls', type: 'feature', value: 'auto', description: 'GnuTLS-based TLS')
 option('dns-over-tls', type: 'feature', value: 'auto', description: 'DNS over TLS (requires GnuTLS or OpenSSL)')
 option('ipcipher', type: 'feature', value: 'auto', description: 'IPcipher (requires libcrypto)')
+option('xsk', type: 'feature', value: 'auto', description: 'Enable AF_XDP / XSK')
 option('unit-tests', type: 'boolean', value: false, description: 'Build and run unit tests')
 option('unit-tests-backends', type: 'boolean', value: false, description: 'Build and run backend unit tests')
 option('reproducible', type: 'boolean', value: false, description: 'Reproducible builds (for distro maintainers, makes debugging difficult)')

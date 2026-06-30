@@ -17,6 +17,8 @@ StartLimitInterval=0
 RuntimeDirectory=pdns
 
 # Sandboxing
+# Note: enabling AF_XDP / XSK also requires adding CAP_NET_ADMIN,
+# CAP_SYS_ADMIN and CAP_NET_RAW, and usually increasing LimitMEMLOCK.
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_CHOWN
 AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_CHOWN
 LockPersonality=true
@@ -34,7 +36,7 @@ ProtectKernelTunables=true
 # ProtectSystem=full will disallow write access to /etc and /usr, possibly
 # not being able to write slaved-zones into sqlite3 or zonefiles.
 ProtectSystem=full
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_XDP
 RestrictNamespaces=true
 RestrictRealtime=true
 RestrictSUIDSGID=true

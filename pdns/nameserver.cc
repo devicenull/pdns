@@ -166,6 +166,7 @@ void UDPNameserver::bindAddresses()
       }
     }
     d_sockets.push_back(s);
+    d_socketAddresses.push_back(locala);
     struct pollfd pfd;
     pfd.fd = s;
     pfd.events = POLLIN;
@@ -221,6 +222,24 @@ UDPNameserver::UDPNameserver(Logr::log_t slog, bool additional_socket)
   }
 
   bindAddresses();
+}
+
+Utility::sock_t UDPNameserver::getSocketForAddress(const ComboAddress& local) const
+{
+  for (size_t index = 0; index < d_socketAddresses.size(); ++index) {
+    if (d_socketAddresses.at(index) == local) {
+      return d_sockets.at(index);
+    }
+  }
+
+  for (size_t index = 0; index < d_socketAddresses.size(); ++index) {
+    const auto& address = d_socketAddresses.at(index);
+    if (address.sin4.sin_family == local.sin4.sin_family && IsAnyAddress(address)) {
+      return d_sockets.at(index);
+    }
+  }
+
+  return -1;
 }
 
 void UDPNameserver::send(DNSPacket& p)

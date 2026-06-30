@@ -2361,6 +2361,93 @@ Specifies the maximum number of received megabytes allowed on an
 incoming AXFR/IXFR update, to prevent resource exhaustion. A value of 0
 means no restriction.
 
+.. _setting-xsk:
+
+``xsk``
+-------
+
+-  Boolean
+-  Default: no
+
+Enable ``AF_XDP`` / ``XSK`` support for UDP queries. This requires a
+binary built with XSK support, an external XDP program using the pinned
+maps configured below, and concrete :ref:`setting-local-address` values
+instead of wildcard addresses.
+
+.. _setting-xsk-clear-destination-maps:
+
+``xsk-clear-destination-maps``
+------------------------------
+
+-  Boolean
+-  Default: yes
+
+Clear the configured XSK destination maps on startup before inserting
+the configured local addresses.
+
+.. _setting-xsk-destination-v4-map-path:
+
+``xsk-destination-v4-map-path``
+-------------------------------
+
+-  Path
+-  Default: ``/sys/fs/bpf/pdns-auth/xsk-destinations-v4``
+
+Pinned BPF IPv4 destination map path used by the XDP program.
+
+.. _setting-xsk-destination-v6-map-path:
+
+``xsk-destination-v6-map-path``
+-------------------------------
+
+-  Path
+-  Default: ``/sys/fs/bpf/pdns-auth/xsk-destinations-v6``
+
+Pinned BPF IPv6 destination map path used by the XDP program.
+
+.. _setting-xsk-frames:
+
+``xsk-frames``
+--------------
+
+-  Integer
+-  Default: 65536
+
+Number of UMEM frames to allocate per XSK socket. This value must be a
+power of two.
+
+.. _setting-xsk-interface:
+
+``xsk-interface``
+-----------------
+
+-  String
+-  Default: unset
+
+Network interface name to use for ``AF_XDP`` / ``XSK``.
+
+.. _setting-xsk-map-path:
+
+``xsk-map-path``
+----------------
+
+-  Path
+-  Default: ``/sys/fs/bpf/pdns-auth/xskmap``
+
+Pinned BPF XSK map path used by the XDP program.
+
+.. _setting-xsk-queues:
+
+``xsk-queues``
+--------------
+
+-  Integer
+-  Default: 1
+
+Number of network interface queues to use for ``AF_XDP`` / ``XSK``.
+PowerDNS creates one XSK socket and one additional receiver thread per
+queue, using queue IDs starting at 0.
+
 .. _setting-zone-cache-refresh-interval:
 
 ``zone-cache-refresh-interval``

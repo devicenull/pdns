@@ -17,6 +17,8 @@ StartLimitInterval=0
 RuntimeDirectory=@RuntimeDirectory@
 
 # Sandboxing
+# Note: enabling AF_XDP / XSK also requires adding CAP_NET_ADMIN,
+# CAP_SYS_ADMIN and CAP_NET_RAW, and usually increasing LimitMEMLOCK.
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_CHOWN
 AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_CHOWN
 @LockPersonality@

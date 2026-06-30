@@ -469,25 +469,43 @@ void XskSocket::XskUmem::umemInit(size_t memSize, xsk_ring_cons* completionQueue
   }
 }
 
-std::string XskSocket::getMetrics() const
+XskSocket::Metrics XskSocket::getMetricsSnapshot() const noexcept
 {
+  Metrics ret;
   xdp_statistics stats{};
   socklen_t optlen = sizeof(stats);
   int err = getsockopt(xskFd(), SOL_XDP, XDP_STATISTICS, &stats, &optlen);
   if (err != 0) {
-    return "";
+    return ret;
   }
   if (optlen != sizeof(struct xdp_statistics)) {
+    return ret;
+  }
+
+  ret.available = true;
+  ret.rxDropped = stats.rx_dropped;
+  ret.rxInvalidDescs = stats.rx_invalid_descs;
+  ret.txInvalidDescs = stats.tx_invalid_descs;
+  ret.rxRingFull = stats.rx_ring_full;
+  ret.rxFillRingEmptyDescs = stats.rx_fill_ring_empty_descs;
+  ret.txRingEmptyDescs = stats.tx_ring_empty_descs;
+  return ret;
+}
+
+std::string XskSocket::getMetrics() const
+{
+  const auto stats = getMetricsSnapshot();
+  if (!stats.available) {
     return "";
   }
 
   ostringstream ret;
-  ret << "RX dropped: " << std::to_string(stats.rx_dropped) << std::endl;
-  ret << "RX invalid descs: " << std::to_string(stats.rx_invalid_descs) << std::endl;
-  ret << "TX invalid descs: " << std::to_string(stats.tx_invalid_descs) << std::endl;
-  ret << "RX ring full: " << std::to_string(stats.rx_ring_full) << std::endl;
-  ret << "RX fill ring empty descs: " << std::to_string(stats.rx_fill_ring_empty_descs) << std::endl;
-  ret << "TX ring empty descs: " << std::to_string(stats.tx_ring_empty_descs) << std::endl;
+  ret << "RX dropped: " << std::to_string(stats.rxDropped) << std::endl;
+  ret << "RX invalid descs: " << std::to_string(stats.rxInvalidDescs) << std::endl;
+  ret << "TX invalid descs: " << std::to_string(stats.txInvalidDescs) << std::endl;
+  ret << "RX ring full: " << std::to_string(stats.rxRingFull) << std::endl;
+  ret << "RX fill ring empty descs: " << std::to_string(stats.rxFillRingEmptyDescs) << std::endl;
+  ret << "TX ring empty descs: " << std::to_string(stats.txRingEmptyDescs) << std::endl;
   return ret.str();
 }
 
@@ -1213,6 +1231,20 @@ bool XskWorker::hasIncomingFrames()
   }
 
   return d_incomingPacketsQueue.read_available() != 0U;
+}
+
+uint64_t XskWorker::getIncomingQueueSize()
+{
+  if (d_type == Type::OutgoingOnly) {
+    return 0;
+  }
+
+  return d_incomingPacketsQueue.read_available();
+}
+
+uint64_t XskWorker::getOutgoingQueueSize()
+{
+  return d_outgoingPacketsQueue.read_available();
 }
 
 void XskWorker::processIncomingFrames(const std::function<void(XskPacket packet)>& callback)

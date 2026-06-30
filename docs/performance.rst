@@ -44,6 +44,38 @@ In case of only 1 thread, PowerDNS reverts to unthreaded operation which
 may be a lot faster, depending on your operating system and
 architecture.
 
+``AF_XDP`` / ``XSK``
+--------------------
+
+On recent Linux kernels, PowerDNS Authoritative can receive and send UDP
+queries using ``AF_XDP`` / ``XSK`` when built with XSK support and when
+:ref:`setting-xsk` is enabled. The implementation reuses the same XSK
+packet handling layer as dnsdist, and still uses the normal
+Authoritative packet cache and distributor code paths.
+
+An external XDP program must be loaded before startup. The helper in
+``contrib/xdp.py`` can create the required XSK and destination maps; for
+Authoritative's default map paths use for example::
+
+  python3 contrib/xdp.py --xsk --interface enp1s0 \
+    --xsk-map-path /sys/fs/bpf/pdns-auth/xskmap \
+    --xsk-destination-v4-map-path /sys/fs/bpf/pdns-auth/xsk-destinations-v4 \
+    --xsk-destination-v6-map-path /sys/fs/bpf/pdns-auth/xsk-destinations-v6
+
+``AF_XDP`` / ``XSK`` requires concrete :ref:`setting-local-address`
+entries, not wildcard addresses like ``0.0.0.0`` or ``::``. The service
+also needs the usual XDP privileges and access to the pinned BPF maps,
+including ``CAP_NET_ADMIN``, ``CAP_SYS_ADMIN``, ``CAP_NET_RAW``,
+permission to create ``AF_XDP`` sockets, and enough locked memory.
+
+Each configured XSK queue starts an additional receiver thread using its
+own set of distributor threads.
+
+XSK traffic is accounted in the normal UDP query, answer, packet cache
+and latency statistics. Additional ``xsk-*`` statistics expose XSK-only
+query and response counts, user-space XSK drops and queue sizes, and the
+kernel ``XDP_STATISTICS`` counters for dropped packets and ring pressure.
+
 Other very important settings are
 :ref:`setting-cache-ttl`. PowerDNS caches entire
 packets it sends out so as to save the time to query backends to
@@ -410,6 +442,102 @@ Number of questions received over TCPv6
 timedout-packets
 ^^^^^^^^^^^^^^^^
 Amount of packets that were dropped because they had to wait too long internally
+
+.. _stat-xsk-answers:
+
+xsk-answers
+^^^^^^^^^^^
+Number of answers sent out over ``AF_XDP`` / ``XSK``
+
+.. _stat-xsk-corrupt-packets:
+
+xsk-corrupt-packets
+^^^^^^^^^^^^^^^^^^^
+Number of corrupt ``AF_XDP`` / ``XSK`` packets received
+
+.. _stat-xsk-dropped-packets:
+
+xsk-dropped-packets
+^^^^^^^^^^^^^^^^^^^
+Number of ``AF_XDP`` / ``XSK`` packets dropped by PowerDNS before reaching normal query processing
+
+.. _stat-xsk-kernel-metrics-unavailable:
+
+xsk-kernel-metrics-unavailable
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Number of ``AF_XDP`` / ``XSK`` sockets whose kernel statistics could not be read
+
+.. _stat-xsk-kernel-rx-dropped:
+
+xsk-kernel-rx-dropped
+^^^^^^^^^^^^^^^^^^^^^
+Number of ``AF_XDP`` / ``XSK`` packets dropped by the kernel
+
+.. _stat-xsk-kernel-rx-fill-ring-empty-descs:
+
+xsk-kernel-rx-fill-ring-empty-descs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Number of times the kernel reported an empty ``AF_XDP`` / ``XSK`` fill ring
+
+.. _stat-xsk-kernel-rx-invalid-descs:
+
+xsk-kernel-rx-invalid-descs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Number of invalid ``AF_XDP`` / ``XSK`` RX descriptors reported by the kernel
+
+.. _stat-xsk-kernel-rx-ring-full:
+
+xsk-kernel-rx-ring-full
+^^^^^^^^^^^^^^^^^^^^^^^
+Number of times the kernel reported a full ``AF_XDP`` / ``XSK`` RX ring
+
+.. _stat-xsk-kernel-tx-invalid-descs:
+
+xsk-kernel-tx-invalid-descs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Number of invalid ``AF_XDP`` / ``XSK`` TX descriptors reported by the kernel
+
+.. _stat-xsk-kernel-tx-ring-empty-descs:
+
+xsk-kernel-tx-ring-empty-descs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Number of times the kernel reported an empty ``AF_XDP`` / ``XSK`` TX ring
+
+.. _stat-xsk-no-route-packets:
+
+xsk-no-route-packets
+^^^^^^^^^^^^^^^^^^^^
+Number of ``AF_XDP`` / ``XSK`` packets dropped because no worker route matched their destination
+
+.. _stat-xsk-queries:
+
+xsk-queries
+^^^^^^^^^^^
+Number of UDP queries received over ``AF_XDP`` / ``XSK``
+
+.. _stat-xsk-receive-queue-size:
+
+xsk-receive-queue-size
+^^^^^^^^^^^^^^^^^^^^^^
+Number of ``AF_XDP`` / ``XSK`` packets waiting in PowerDNS receive queues
+
+.. _stat-xsk-response-fallbacks:
+
+xsk-response-fallbacks
+^^^^^^^^^^^^^^^^^^^^^^
+Number of ``AF_XDP`` / ``XSK`` responses that fell back to the normal UDP socket
+
+.. _stat-xsk-send-queue-size:
+
+xsk-send-queue-size
+^^^^^^^^^^^^^^^^^^^
+Number of ``AF_XDP`` / ``XSK`` packets waiting in PowerDNS send queues
+
+.. _stat-xsk-sockets:
+
+xsk-sockets
+^^^^^^^^^^^
+Number of ``AF_XDP`` / ``XSK`` sockets
 
 .. _stat-udp-answers-bytes:
 

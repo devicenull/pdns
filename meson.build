@@ -82,6 +82,7 @@ subdir('meson' / 'cdb')                     # CDB
 subdir('meson' / 'geoip')                   # GeoIP
 subdir('meson' / 'mmdb')                    # MaxMindDB
 subdir('meson' / 'cxx-fs')                  # C++ stdlib Filesystem Module
+subdir('meson' / 'xsk')                     # BPF and XDP for XSK
 
 common_sources = []
 
@@ -224,7 +225,7 @@ if dep_systemd_prog.found()
   )
   auth_service_conf.set(
     'RestrictAddressFamilies',
-    have_systemd_restrict_address_families ? 'RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6' : '',
+    have_systemd_restrict_address_families ? 'RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_XDP' : '',
   )
 
   enable_socket_dir = (not have_systemd_with_runtime_dir_env) and have_systemd_percent_t
@@ -705,12 +706,20 @@ tools = {
     'export-dynamic': true,
     'deps-extra': [
       dep_modules,
+      dep_libbpf,
+      dep_libxdp,
       libpdns_ssqlite3,
       libpdns_gettime,
       libpdns_signers_openssl,
       libpdns_signers_sodium,
       libpdns_sqlbackend,
     ],
+    'files-extra': files(
+      src_dir / 'auth-xsk.cc',
+      src_dir / 'auth-xsk.hh',
+      src_dir / 'dnsdistdist' / 'xsk.cc',
+      src_dir / 'dnsdistdist' / 'xsk.hh',
+    ),
     'manpages': ['pdns_server.1'],
     'install_dir': get_option('sbindir'),
   },
@@ -892,8 +901,10 @@ if get_option('unit-tests')
       src_dir / 'channel.cc',
       src_dir / 'channel.hh',
       src_dir / 'pollmplexer.cc',
+      src_dir / 'dnsdistdist' / 'xsk.cc',
       src_dir / 'test-arguments_cc.cc',
       src_dir / 'test-auth-zonecache_cc.cc',
+      src_dir / 'test-auth-xsk.cc',
       src_dir / 'test-base32_cc.cc',
       src_dir / 'test-base64_cc.cc',
       src_dir / 'test-bindparser_cc.cc',
@@ -938,6 +949,8 @@ if get_option('unit-tests')
       src_dir / 'zoneparser-tng.hh',
       dependencies: [
         deps,
+        dep_libbpf,
+        dep_libxdp,
       ],
     )
   )

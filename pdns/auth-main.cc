@@ -84,6 +84,7 @@
 #include "dnsrecords.hh"
 #include "version.hh"
 #include "ws-auth.hh"
+#include "auth-xsk.hh"
 
 #ifdef HAVE_LUA_RECORDS
 #include "minicurl.hh"
@@ -184,6 +185,14 @@ static void declareArguments()
   ::arg().setSwitch("local-address-nonexist-fail", "Fail to start if one or more of the local-address's do not exist on this server") = "yes";
   ::arg().setSwitch("non-local-bind", "Enable binding to non-local addresses by using FREEBIND / BINDANY socket options") = "no";
   ::arg().setSwitch("reuseport", "Enable higher performance on compliant kernels by using SO_REUSEPORT allowing each receiver thread to open its own socket") = "no";
+  ::arg().setSwitch("xsk", "Enable AF_XDP / XSK support for UDP queries") = "no";
+  ::arg().set("xsk-interface", "Network interface to use for AF_XDP / XSK") = "";
+  ::arg().set("xsk-queues", "Number of network interface queues to use for AF_XDP / XSK") = "1";
+  ::arg().set("xsk-frames", "Number of UMEM frames per AF_XDP / XSK socket") = "65536";
+  ::arg().set("xsk-map-path", "Pinned BPF XSK map path used by the XDP program") = "/sys/fs/bpf/pdns-auth/xskmap";
+  ::arg().set("xsk-destination-v4-map-path", "Pinned BPF IPv4 destination map path used by the XDP program") = "/sys/fs/bpf/pdns-auth/xsk-destinations-v4";
+  ::arg().set("xsk-destination-v6-map-path", "Pinned BPF IPv6 destination map path used by the XDP program") = "/sys/fs/bpf/pdns-auth/xsk-destinations-v6";
+  ::arg().setSwitch("xsk-clear-destination-maps", "Clear AF_XDP / XSK destination maps at startup before inserting local addresses") = "yes";
   ::arg().set("query-local-address", "Source IP addresses for sending queries") = "0.0.0.0 ::";
   ::arg().set("overload-queue-length", "Maximum queuelength moving to packetcache only") = "0";
   ::arg().set("max-queue-length", "Maximum queuelength before considering situation lost") = "5000";
@@ -456,6 +465,25 @@ static void declareStats()
   S.declare("udp6-queries", "Number of IPv6 UDP queries received");
   S.declare("overload-drops", "Queries dropped because backends overloaded");
 
+#ifdef HAVE_XSK
+  S.declare("xsk-queries", "Number of UDP queries received over AF_XDP / XSK");
+  S.declare("xsk-answers", "Number of answers sent out over AF_XDP / XSK");
+  S.declare("xsk-dropped-packets", "Number of AF_XDP / XSK packets dropped by PowerDNS before reaching normal query processing");
+  S.declare("xsk-corrupt-packets", "Number of corrupt AF_XDP / XSK packets received");
+  S.declare("xsk-no-route-packets", "Number of AF_XDP / XSK packets dropped because no worker route matched their destination");
+  S.declare("xsk-response-fallbacks", "Number of AF_XDP / XSK responses that fell back to the normal UDP socket");
+  S.declare("xsk-sockets", "Number of AF_XDP / XSK sockets", authXskMetric, StatType::gauge);
+  S.declare("xsk-receive-queue-size", "Number of AF_XDP / XSK packets waiting in PowerDNS receive queues", authXskMetric, StatType::gauge);
+  S.declare("xsk-send-queue-size", "Number of AF_XDP / XSK packets waiting in PowerDNS send queues", authXskMetric, StatType::gauge);
+  S.declare("xsk-kernel-rx-dropped", "Number of AF_XDP / XSK packets dropped by the kernel", authXskMetric, StatType::counter);
+  S.declare("xsk-kernel-rx-invalid-descs", "Number of invalid AF_XDP / XSK RX descriptors reported by the kernel", authXskMetric, StatType::counter);
+  S.declare("xsk-kernel-tx-invalid-descs", "Number of invalid AF_XDP / XSK TX descriptors reported by the kernel", authXskMetric, StatType::counter);
+  S.declare("xsk-kernel-rx-ring-full", "Number of times the kernel reported a full AF_XDP / XSK RX ring", authXskMetric, StatType::counter);
+  S.declare("xsk-kernel-rx-fill-ring-empty-descs", "Number of times the kernel reported an empty AF_XDP / XSK fill ring", authXskMetric, StatType::counter);
+  S.declare("xsk-kernel-tx-ring-empty-descs", "Number of times the kernel reported an empty AF_XDP / XSK TX ring", authXskMetric, StatType::counter);
+  S.declare("xsk-kernel-metrics-unavailable", "Number of AF_XDP / XSK sockets whose kernel statistics could not be read", authXskMetric, StatType::gauge);
+#endif /* HAVE_XSK */
+
   S.declare("rd-queries", "Number of recursion desired questions");
   S.declare("recursion-unanswered", "Number of packets unanswered by configured recursor");
   S.declare("recursing-answers", "Number of recursive answers sent out");
@@ -552,6 +580,16 @@ static void update_latencies(int start, int diff)
   avg_latency = 0.999 * avg_latency + 0.001 * std::max(diff, 0); // 'EWMA'
 }
 
+static void sendResponse(DNSPacket& packet, const std::shared_ptr<UDPNameserver>& nameserver)
+{
+#ifdef HAVE_XSK
+  if (authXskSendResponse(packet)) {
+    return;
+  }
+#endif /* HAVE_XSK */
+  nameserver->send(packet);
+}
+
 static void sendout(std::unique_ptr<DNSPacket>& a, Logr::log_t slog, int start)
 {
   if (!a)
@@ -562,7 +600,7 @@ static void sendout(std::unique_ptr<DNSPacket>& a, Logr::log_t slog, int start)
     backend_latency = 0.999 * backend_latency + 0.001 * std::max(diff - start, 0);
     start = diff;
 
-    s_udpNameserver->send(*a);
+    sendResponse(*a, s_udpNameserver);
 
     diff = a->d_dt.udiff();
     update_latencies(start, diff);
@@ -575,7 +613,7 @@ static void sendout(std::unique_ptr<DNSPacket>& a, Logr::log_t slog, int start)
 
 //! The qthread receives questions over the internet via the Nameserver class, and hands them to the Distributor for further processing
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-static void qthread(unsigned int num)
+static void qthread(unsigned int num, std::shared_ptr<AuthXskReceiver> xskReceiver = nullptr)
 {
   std::shared_ptr<Logr::Logger> slog;
   if (g_slogStructured) {
@@ -585,8 +623,16 @@ static void qthread(unsigned int num)
   try {
     setThreadName("pdns/receiver");
 
-    s_distributors[num] = DNSDistributor::Create(::arg().asNum("distributor-threads", 1), slog);
-    DNSDistributor* distributor = s_distributors[num]; // the big dispatcher!
+    std::unique_ptr<DNSDistributor> xskDistributor{nullptr};
+    DNSDistributor* distributor = nullptr; // the big dispatcher!
+    if (xskReceiver) {
+      xskDistributor.reset(DNSDistributor::Create(::arg().asNum("distributor-threads", 1), slog));
+      distributor = xskDistributor.get();
+    }
+    else {
+      s_distributors[num] = DNSDistributor::Create(::arg().asNum("distributor-threads", 1), slog);
+      distributor = s_distributors[num];
+    }
     DNSPacket question(slog, true);
     DNSPacket cached(slog, false);
 
@@ -598,6 +644,9 @@ static void qthread(unsigned int num)
 
     AtomicCounter& numreceived6 = *S.getPointer("udp6-queries");
     AtomicCounter& overloadDrops = *S.getPointer("overload-drops");
+#ifdef HAVE_XSK
+    AtomicCounter* numreceivedxsk = xskReceiver ? S.getPointer("xsk-queries") : nullptr;
+#endif /* HAVE_XSK */
 
     int diff{};
     int start{};
@@ -607,7 +656,11 @@ static void qthread(unsigned int num)
 
     // If we have SO_REUSEPORT then create a new port for all receiver threads
     // other than the first one.
-    if (s_udpNameserver->canReusePort()) {
+    if (xskReceiver) {
+      NS = s_udpNameserver;
+      s_distributors[num] = distributor;
+    }
+    else if (s_udpNameserver->canReusePort()) {
       NS = s_udpReceivers[num];
       if (NS == nullptr) {
         NS = s_udpNameserver;
@@ -626,7 +679,15 @@ static void qthread(unsigned int num)
           buffer.resize(DNSPacket::s_udpTruncationThreshold + g_proxyProtocolMaximumSize);
         }
 
-        if (!NS->receive(question, buffer)) { // receive a packet         inline
+        if (xskReceiver) {
+          if (!xskReceiver->receive(question, buffer)) {
+            continue;
+          }
+          if (question.d_anyLocal) {
+            question.setSocket(NS->getSocketForAddress(*question.d_anyLocal));
+          }
+        }
+        else if (!NS->receive(question, buffer)) { // receive a packet         inline
           continue; // packet was broken, try again
         }
 
@@ -634,6 +695,11 @@ static void qthread(unsigned int num)
         receive_latency = 0.999 * receive_latency + 0.001 * std::max(diff, 0);
 
         numreceived++;
+#ifdef HAVE_XSK
+        if (numreceivedxsk != nullptr) {
+          (*numreceivedxsk)++;
+        }
+#endif /* HAVE_XSK */
 
         accountremote = question.getInnerRemote();
 
@@ -697,6 +763,9 @@ static void qthread(unsigned int num)
             cached.d_inner_remote = question.d_inner_remote;
             cached.setSocket(question.getSocket()); // inlined
             cached.d_anyLocal = question.d_anyLocal;
+#ifdef HAVE_XSK
+            cached.d_xskResponse = question.d_xskResponse;
+#endif /* HAVE_XSK */
             cached.setMaxReplyLen(question.getMaxReplyLen()); // NOLINT(bugprone-narrowing-conversions,cppcoreguidelines-narrowing-conversions) get returns unsigned, set takes signed...
             cached.d.rd = question.d.rd; // copy in recursion desired bit
             cached.d.id = question.d.id;
@@ -706,7 +775,7 @@ static void qthread(unsigned int num)
             cache_latency = 0.999 * cache_latency + 0.001 * std::max(diff - start, 0);
             start = diff;
 
-            NS->send(cached); // answer it then                              inlined
+            sendResponse(cached, NS); // answer it then                              inlined
 
             diff = question.d_dt.udiff();
             update_latencies(start, diff);
@@ -1043,11 +1112,29 @@ static void mainthread()
   s_tcpNameserver->go(); // tcp nameserver launch
 
   unsigned int max_rthreads = ::arg().asNum("receiver-threads", 1);
-  s_distributors.resize(max_rthreads);
+  unsigned int xskReceivers = 0;
+#ifdef HAVE_XSK
+  if (authXskEnabled()) {
+    xskReceivers = getAuthXskReceivers().size();
+  }
+#endif /* HAVE_XSK */
+  s_distributors.resize(max_rthreads + xskReceivers);
   for (unsigned int n = 0; n < max_rthreads; ++n) {
-    std::thread t(qthread, n);
+    std::thread t(qthread, n, std::shared_ptr<AuthXskReceiver>(nullptr));
     t.detach();
   }
+
+#ifdef HAVE_XSK
+  if (authXskEnabled()) {
+    startAuthXskRouters();
+    unsigned int xskReceiver = 0;
+    for (const auto& receiver : getAuthXskReceivers()) {
+      std::thread t(qthread, max_rthreads + xskReceiver, receiver);
+      t.detach();
+      ++xskReceiver;
+    }
+  }
+#endif /* HAVE_XSK */
 
   std::thread carbonThread(carbonDumpThread, std::ref(slog)); // runs even w/o carbon, might change @ runtime
 
@@ -1781,6 +1868,16 @@ int main(int argc, char** argv)
         }
       }
     }
+
+#ifdef HAVE_XSK
+    setupAuthXsk(g_slog);
+#else
+    if (::arg().mustDo("xsk")) {
+      SLOG(g_log << Logger::Error << "Unable to enable XSK: this binary has not been built with AF_XDP / XSK support" << endl,
+           g_slog->info(Logr::Error, "Unable to enable XSK: this binary has not been built with AF_XDP / XSK support"));
+      exit(1);
+    }
+#endif /* HAVE_XSK */
 
     std::shared_ptr<Logr::Logger> nameserverslog;
     if (g_slogStructured) {

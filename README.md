@@ -1,3 +1,23 @@
+NOTE: This contains AI-created modifications to pdns, and is not suitable for being merged to upstream due to AI_POLICY.md
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 PowerDNS is copyright © by PowerDNS.COM BV and lots of
 contributors, using the GNU GPLv2 license (see NOTICE for the
 exact license and exception used).

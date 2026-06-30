@@ -33,6 +33,7 @@
 #include <arpa/inet.h>
 
 #include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
 #include <boost/optional.hpp>
@@ -46,6 +47,7 @@
 #include "pdnsexception.hh"
 #include "dnsrecords.hh"
 
+class AuthXskResponse;
 
 //! This class represents DNS packets, either received or to be sent.
 class DNSPacket
@@ -78,6 +80,9 @@ public:
   string getRemoteStringWithPort() const;
 
   boost::optional<ComboAddress> d_anyLocal;
+#ifdef HAVE_XSK
+  std::shared_ptr<AuthXskResponse> d_xskResponse;
+#endif /* HAVE_XSK */
 
   Utility::sock_t getSocket() const
   {

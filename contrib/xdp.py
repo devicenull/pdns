@@ -112,6 +112,24 @@ parser.add_argument(
     "--number-of-queues", "-q", type=int, default=64, help="Maximum number of network queues in XSK (AF_XDP) mode"
 )
 parser.add_argument("--xsk", action="store_true", default=False, help="Enable XSK (AF_XDP) mode")
+parser.add_argument(
+    "--xsk-map-path",
+    type=str,
+    default="/sys/fs/bpf/dnsdist/xskmap",
+    help="Pinned BPF XSK map path",
+)
+parser.add_argument(
+    "--xsk-destination-v4-map-path",
+    type=str,
+    default="/sys/fs/bpf/dnsdist/xsk-destinations-v4",
+    help="Pinned BPF IPv4 destination map path",
+)
+parser.add_argument(
+    "--xsk-destination-v6-map-path",
+    type=str,
+    default="/sys/fs/bpf/dnsdist/xsk-destinations-v6",
+    help="Pinned BPF IPv6 destination map path",
+)
 
 parameters = parser.parse_args()
 cflag = [f"-DDDIST_MAX_NUMBER_OF_QUEUES={parameters.number_of_queues}", f"-DDDIST_MAPS_SIZE={parameters.maps_size}"]
@@ -123,6 +141,13 @@ if parameters.xsk:
     for interface in interfaces:
         print(f"Enabling XSK (AF_XDP) on {interface}..")
     cflag.append("-DUseXsk")
+    cflag.extend(
+        [
+            f'-DDDIST_XSK_MAP_PATH="{parameters.xsk_map_path}"',
+            f'-DDDIST_XSK_DESTINATIONS_V4_MAP_PATH="{parameters.xsk_destination_v4_map_path}"',
+            f'-DDDIST_XSK_DESTINATIONS_V6_MAP_PATH="{parameters.xsk_destination_v6_map_path}"',
+        ]
+    )
 else:
     ports = [53]
     ports_str = ", ".join(str(port) for port in ports)

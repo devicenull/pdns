@@ -45,6 +45,10 @@ if LIBSODIUM
 AM_CPPFLAGS +=$(LIBSODIUM_CFLAGS)
 endif
 
+if HAVE_XSK
+AM_CPPFLAGS += $(LIBBPF_CFLAGS) $(LIBXDP_CFLAGS)
+endif
+
 EXTRA_DIST = \
 	api-openapi.json \
 	api-openapi.yaml \
@@ -191,6 +195,7 @@ pdns_server_SOURCES = \
 	auth-caches.cc auth-caches.hh \
 	auth-carbon.cc \
 	auth-catalogzone.cc auth-catalogzone.hh \
+	auth-xsk.cc auth-xsk.hh \
 	auth-main.cc auth-main.hh \
 	auth-packetcache.cc auth-packetcache.hh \
 	auth-primarycommunicator.cc \
@@ -231,6 +236,7 @@ pdns_server_SOURCES = \
 	dnsseckeeper.hh \
 	dnssecsigner.cc \
 	dnswriter.cc \
+	dnsdistdist/xsk.cc dnsdistdist/xsk.hh \
 	dynhandler.cc dynhandler.hh \
 	dynlistener.cc dynlistener.hh \
 	dynmessenger.hh \
@@ -338,6 +344,10 @@ endif
 
 if GSS_TSIG
 pdns_server_LDADD += $(GSS_LIBS)
+endif
+
+if HAVE_XSK
+pdns_server_LDADD += $(LIBBPF_LIBS) $(LIBXDP_LIBS)
 endif
 
 pdnsutil_SOURCES = \
@@ -1437,6 +1447,7 @@ testrunner_SOURCES = \
 	svc-records.cc svc-records.hh \
 	test-arguments_cc.cc \
 	test-auth-zonecache_cc.cc \
+	test-auth-xsk.cc \
 	test-base32_cc.cc \
 	test-base64_cc.cc \
 	test-bindparser_cc.cc \
@@ -1508,6 +1519,11 @@ testrunner_LDADD = \
 if GSS_TSIG
 testrunner_LDADD += $(GSS_LIBS)
 speedtest_LDADD += $(GSS_LIBS)
+endif
+
+if HAVE_XSK
+testrunner_SOURCES += dnsdistdist/xsk.cc dnsdistdist/xsk.hh
+testrunner_LDADD += $(LIBBPF_LIBS) $(LIBXDP_LIBS)
 endif
 
 if PKCS11

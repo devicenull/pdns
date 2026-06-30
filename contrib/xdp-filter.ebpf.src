@@ -10,6 +10,18 @@
 #define DDIST_MAX_NUMBER_OF_QUEUES 64
 #endif /* DDIST_MAX_NUMBER_OF_QUEUES */
 
+#if !defined(DDIST_XSK_MAP_PATH)
+#define DDIST_XSK_MAP_PATH "/sys/fs/bpf/dnsdist/xskmap"
+#endif /* DDIST_XSK_MAP_PATH */
+
+#if !defined(DDIST_XSK_DESTINATIONS_V4_MAP_PATH)
+#define DDIST_XSK_DESTINATIONS_V4_MAP_PATH "/sys/fs/bpf/dnsdist/xsk-destinations-v4"
+#endif /* DDIST_XSK_DESTINATIONS_V4_MAP_PATH */
+
+#if !defined(DDIST_XSK_DESTINATIONS_V6_MAP_PATH)
+#define DDIST_XSK_DESTINATIONS_V6_MAP_PATH "/sys/fs/bpf/dnsdist/xsk-destinations-v6"
+#endif /* DDIST_XSK_DESTINATIONS_V6_MAP_PATH */
+
 BPF_TABLE_PINNED("hash", uint32_t, struct map_value, v4filter, DDIST_MAPS_SIZE, "/sys/fs/bpf/dnsdist/addr-v4");
 BPF_TABLE_PINNED("hash", struct in6_addr, struct map_value, v6filter, DDIST_MAPS_SIZE, "/sys/fs/bpf/dnsdist/addr-v6");
 BPF_TABLE_PINNED("hash", struct dns_qname, struct map_value, qnamefilter, DDIST_MAPS_SIZE, "/sys/fs/bpf/dnsdist/qnames");
@@ -42,9 +54,9 @@ BPF_TABLE_PINNED7("lpm_trie", struct CIDR6, struct map_value, cidr6filter, DDIST
   };                                                 \
   __attribute__((section("maps/xskmap:" _pinned))) struct _name##_table_t _name = {.max_entries = (_max_entries)}
 
-BPF_XSKMAP_PIN(xsk_map, DDIST_MAX_NUMBER_OF_QUEUES, "/sys/fs/bpf/dnsdist/xskmap");
-BPF_TABLE_PINNED("hash", struct IPv4AndPort, bool, xskDestinationsV4, DDIST_MAPS_SIZE, "/sys/fs/bpf/dnsdist/xsk-destinations-v4");
-BPF_TABLE_PINNED("hash", struct IPv6AndPort, bool, xskDestinationsV6, DDIST_MAPS_SIZE, "/sys/fs/bpf/dnsdist/xsk-destinations-v6");
+BPF_XSKMAP_PIN(xsk_map, DDIST_MAX_NUMBER_OF_QUEUES, DDIST_XSK_MAP_PATH);
+BPF_TABLE_PINNED("hash", struct IPv4AndPort, bool, xskDestinationsV4, DDIST_MAPS_SIZE, DDIST_XSK_DESTINATIONS_V4_MAP_PATH);
+BPF_TABLE_PINNED("hash", struct IPv6AndPort, bool, xskDestinationsV6, DDIST_MAPS_SIZE, DDIST_XSK_DESTINATIONS_V6_MAP_PATH);
 #endif /* UseXsk */
 
 #define COMPARE_PORT(x, p) ((x) == bpf_htons(p))

@@ -65,6 +65,19 @@ using MACAddr = std::array<uint8_t, 6>;
 
 class XskSocket
 {
+public:
+  struct Metrics
+  {
+    bool available{false};
+    uint64_t rxDropped{0};
+    uint64_t rxInvalidDescs{0};
+    uint64_t txInvalidDescs{0};
+    uint64_t rxRingFull{0};
+    uint64_t rxFillRingEmptyDescs{0};
+    uint64_t txRingEmptyDescs{0};
+  };
+
+private:
   struct XskUmem
   {
     xsk_umem* umem{nullptr};
@@ -141,6 +154,7 @@ public:
   void addWorker(std::shared_ptr<XskWorker> worker);
   void addWorkerRoute(const std::shared_ptr<XskWorker>& worker, const ComboAddress& dest);
   void removeWorkerRoute(const ComboAddress& dest);
+  [[nodiscard]] Metrics getMetricsSnapshot() const noexcept;
   [[nodiscard]] std::string getMetrics() const;
   [[nodiscard]] std::string getXDPMode() const;
   void markAsFree(const XskPacket& packet);
@@ -318,6 +332,8 @@ public:
   void pushToProcessingQueue(XskPacket& packet);
   void pushToSendQueue(XskPacket& packet);
   bool hasIncomingFrames();
+  [[nodiscard]] uint64_t getIncomingQueueSize();
+  [[nodiscard]] uint64_t getOutgoingQueueSize();
   void processIncomingFrames(const std::function<void(XskPacket packet)>& callback);
   void processOutgoingFrames(const std::function<void(XskPacket packet)>& callback);
   void markAsFree(const XskPacket& packet);

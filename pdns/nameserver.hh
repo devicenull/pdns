@@ -82,6 +82,7 @@ public:
   UDPNameserver(Logr::log_t slog, bool additional_socket = false );  //!< Opens the socket
   bool receive(DNSPacket& packet, std::string& buffer); //!< call this in a while or for(;;) loop to get packets
   void send(DNSPacket&); //!< send a DNSPacket. Will call DNSPacket::truncate() if over 512 bytes
+  Utility::sock_t getSocketForAddress(const ComboAddress& local) const;
   inline bool canReusePort() {
     return d_can_reuseport;
   };
@@ -90,6 +91,7 @@ private:
   bool d_additional_socket;
   bool d_can_reuseport{false};
   vector<int> d_sockets;
+  vector<ComboAddress> d_socketAddresses;
   void bindAddresses();
   vector<pollfd> d_rfds;
   std::shared_ptr<Logr::Logger> d_slog;
